@@ -28,7 +28,7 @@
  *
  */
 
-#include "SaM_ESP32_4_00.h"
+#include "SaM_ESP32D_4_00.h"
 
 void ARDUINO_ISR_ATTR isr(void *arg) {
   /* Function: Inturrupt Service Routine for acquisition of ADC data continously.
