@@ -28,7 +28,40 @@
  *
  */
 
+/*****************************************
+ * Library   : SaM_ESP32D_4_00.cpp - Library for Single ADC with mux for E-LAGORi.
+ * Programmer: Anish Bekal
+ * Comments  : This library is to use with Dual 3.6A motor driver from E-Lagori
+ * Versions  :
+ * ------ 	---------- 		-------------------------
+ * 0.1.0  	2018-09-12		First beta
+ *****************************************/
+
+/*
+ * Source for MdM_ESP32D_4_00
+ *
+ * Copyright (C) 2018  Anish Bekal https://www.e-lagori.com/product/
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * This file contains the code for ELagori Single ADC library.
+ *
+ */
+
 #include "SaM_ESP32D_4_00.h"
+#include "driver/ledc.h"
+#include "driver/periph_ctrl.h"
+#include "SPI.h"
 
 void ARDUINO_ISR_ATTR isr(void *arg) {
   /* Function: Inturrupt Service Routine for acquisition of ADC data continously.
@@ -38,7 +71,7 @@ void ARDUINO_ISR_ATTR isr(void *arg) {
      When memory overflows the <SADCM_4_00>.memovfl flag is enabled which can be reset after copying the data to different memory location.
   */
   static uint32_t cnt = 0;
-  SADCM_4_00 *s = static_cast<SADCM_4_00*>(arg);
+  SaM_4_00 *s = static_cast<SaM_4_00*>(arg);
   digitalWrite(s->pins.CS,LOW);
   s->mem[cnt % s->memlen] = s->spi->transfer32(0);
   digitalWrite(s->pins.CS,HIGH);
@@ -73,6 +106,7 @@ void SaM_4_00::disMCLK(){
    /* Function: Disables Master clock
    	  Input: None
 	  Output: None
+	  Output: None
 	  Disables Master clock running on class defined Timer and LED channel
    */
 
@@ -86,7 +120,7 @@ void SaM_4_00::disMCLK(){
    ledc_channel_config(&(this->channel_config));
 }
 
-SaM_4_00::SaM_4_00(SADCM_4_00_Pinconfig p, ledc_timer_t tim_num = LEDC_TIMER_0, ledc_channel_t = LEDC_CHANNEL_0){
+SaM_4_00::SaM_4_00(SaM_4_00_Pinconfig p, ledc_timer_t tim_num, ledc_channel_t){
   /* Function: Constructor for SADCM_4_00 class
      Input: p - E-Lagori control pins attached to various functions. 
 	 		tim_num - Timer number, defaults to  Timer 0
@@ -99,7 +133,7 @@ SaM_4_00::SaM_4_00(SADCM_4_00_Pinconfig p, ledc_timer_t tim_num = LEDC_TIMER_0, 
   this->tim_num = tim_num;
   this->ch_num = ch_num;
 
-  pinMode(this->pins.PD_,OUTPUT);
+  //pinMode(this->pins.PD_,OUTPUT);
   pinMode(this->pins.DRDY_,INPUT);
   pinMode(this->pins.MCLK,OUTPUT);
   pinMode(this->pins.CS, OUTPUT);
