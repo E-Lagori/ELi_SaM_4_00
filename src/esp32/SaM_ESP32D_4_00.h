@@ -1,4 +1,4 @@
-* Header for SaM_ESP32D_4_00.h
+/* Header for SaM_ESP32D_4_00.h
  *
  * Copyright (C) 2022  E-LAGORi https://github.com/E-Lagori/ELi_SaM_4_00/tree/main/src/esp32
  *
@@ -43,6 +43,7 @@
 #include <ELi_McM_4_00.h>
 #include "driver/ledc.h"
 #include "driver/periph_ctrl.h"
+#include "SPI.h"
 
 struct SaM_4_00_Pinconfig{
             uint8_t DRDY_, MCLK, CS, S0, S1, S2, S3;
@@ -64,10 +65,10 @@ class SaM_4_00{
           void disMCLK(); // Disable master clock
   
   protected:
-          Pinconfig pins; // pins attached to the system on E-Lagori boards
+          SaM_4_00_Pinconfig pins; // pins attached to the system on E-Lagori boards
   public:
         bool memovfl = 0; //Continous acquisiont memory overflow
-        SADCM_4_00(SADCM_4_00_Pinconfig, ledc_timer_t, ledc_channel_t); // Constructor for Single ADC
+        SaM_4_00(SaM_4_00_Pinconfig, ledc_timer_t tim_num = LEDC_TIMER_0, ledc_channel_t = LEDC_CHANNEL_0); // Constructor for Single ADC
         void attachSPI(SPIClass *); // Attach SPI to Single ADC
         void SetMux(uint8_t); // Set Analog signal channel 
         void initcontacq(uint32_t, int32_t *, uint32_t); // Initiate Contnous acquisition mode
@@ -79,5 +80,4 @@ class SaM_4_00{
         bool getacqstate(); // Present acquisition state - Continous or single value
         friend void isr(void *); // interrupt service routine for continous aquisition
 };
-
 #endif
