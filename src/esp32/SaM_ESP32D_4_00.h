@@ -40,7 +40,7 @@
 #define SaM_CH_P 15
 
 
-#include McM_ESP32D_4_00.h
+#include ELi_McM_4_00.h
 #include "driver/ledc.h"
 #include "driver/periph_ctrl.h"
 
