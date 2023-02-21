@@ -28,36 +28,6 @@
  *
  */
 
-/*****************************************
- * Library   : SaM_ESP32D_4_00.cpp - Library for Single ADC with mux for E-LAGORi.
- * Programmer: Anish Bekal
- * Comments  : This library is to use with Dual 3.6A motor driver from E-Lagori
- * Versions  :
- * ------ 	---------- 		-------------------------
- * 0.1.0  	2018-09-12		First beta
- *****************************************/
-
-/*
- * Source for MdM_ESP32D_4_00
- *
- * Copyright (C) 2018  Anish Bekal https://www.e-lagori.com/product/
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- * This file contains the code for ELagori Single ADC library.
- *
- */
-
 #include "SaM_ESP32D_4_00.h"
 #include "driver/ledc.h"
 #include "driver/periph_ctrl.h"
@@ -120,6 +90,7 @@ void SaM_4_00::disMCLK(){
    ledc_channel_config(&(this->channel_config));
 }
 
+
 SaM_4_00::SaM_4_00(SaM_4_00_Pinconfig p, ledc_timer_t tim_num, ledc_channel_t){
   /* Function: Constructor for SADCM_4_00 class
      Input: p - E-Lagori control pins attached to various functions. 
@@ -141,8 +112,45 @@ SaM_4_00::SaM_4_00(SaM_4_00_Pinconfig p, ledc_timer_t tim_num, ledc_channel_t){
   pinMode(this->pins.S1, OUTPUT);
   pinMode(this->pins.S2, OUTPUT);
   pinMode(this->pins.S3, OUTPUT);
+  
+  digitalWrite(this->pins.S0, LOW);
+  digitalWrite(this->pins.S1, LOW);
+  digitalWrite(this->pins.S2, LOW);
+  digitalWrite(this->pins.S3, LOW);
+  this->muxstate = 0;
+  // Set up timer
+   setMCLK(1024000);
+  subproc = 0;
 }
 
+SaM_4_00::SaM_4_00(SaM_4_00_Pinconfig p, boardconf brd, ledc_timer_t tim_num, ledc_channel_t){
+  /* Function: Constructor for SADCM_4_00 class
+     Input: p - E-Lagori control pins attached to various functions. 
+	 		tim_num - Timer number, defaults to  Timer 0
+			ledc_channel_t - LED channel number, defaults to Channel 0
+	 Output: None
+	 Configures all the ports of the ESP32 processor and sets the timer and LED channels.
+  */
+
+  this->pins = p;
+  this->tim_num = tim_num;
+  this->ch_num = ch_num;
+  this->brd = brd;
+
+  //pinMode(this->pins.PD_,OUTPUT);
+  pinMode(this->pins.DRDY_,INPUT);
+  pinMode(this->pins.MCLK,OUTPUT);
+  pinMode(this->pins.CS, OUTPUT);
+  // Set up timer
+   setMCLK(1024000);
+  subproc = 1;
+}
+
+uint32_t SaM_4_00::changMCLK(uint32_t Fs){
+	disMCLK();
+	this->setMCLK((Fs<32000?Fs:32000)*32);
+	return (Fs<32000?Fs:32000);
+}
 void SaM_4_00::attachSPI(SPIClass *spi){
   /* Function: Attaches the preconfigured SPI channel to SADCM_4_00 board
   	 Input: spi - pointer to object of SPIclass
@@ -158,10 +166,99 @@ void SaM_4_00::SetMux(uint8_t m){
      Output: None
 	 The Select pins are defined as per SADCM_4_00_Pinconfig in the constructor
   */
-  digitalWrite(this->pins.S0,(m&B00000001));
-  digitalWrite(this->pins.S1,(m&B00000010)>>1);
-  digitalWrite(this->pins.S2,(m&B00000100)>>2);
-  digitalWrite(this->pins.S3,(m&B00001000)>>3);
+  if (!subproc){
+  	digitalWrite(this->pins.S0,(m&B00000001));
+  	digitalWrite(this->pins.S1,(m&B00000010)>>1);
+  	digitalWrite(this->pins.S2,(m&B00000100)>>2);
+  	digitalWrite(this->pins.S3,(m&B00001000)>>3);	
+  }
+  else{
+  	char *temp;
+  	temp = (char*)&(this->brd);
+	Serial2.flush();
+  	for (int i = 0;i < 3; i++){
+    	Serial2.print(temp[i]);
+		//delayMicroseconds(50);
+  	}
+	//Serial.println(m,BIN);
+	Serial2.print((char)m);
+  }
+  return;
+}
+
+uint8_t SaM_4_00::getmuxstate(){
+	char temprec[4]; 
+	if (subproc){
+		char *temp;
+	  	temp = (char*)&(this->brd);
+		Serial2.flush();
+	  	for (int i = 0;i < 3; i++)
+	    	Serial2.print(temp[i]);
+		Serial2.print(0x30);
+		unsigned long sttime = micros();
+		while(!Serial2.available()){if((micros() - sttime)>1000) return(0xFF);};
+		temprec[0] = Serial2.read();
+		temprec[1] = Serial2.read();
+		temprec[2] = Serial2.read();
+		temprec[3] = Serial2.read();
+		if ((temprec[0] == this->brd.reserved) && (temprec[1] == this->brd.brdtype) && (temprec[2] == this->brd.brdno))
+			this->muxstate = temprec[3] & 0x0F;
+  	}
+  	return(this->muxstate);
+}
+
+bool SaM_4_00::powerdown(){
+	uint8_t temprec[3];
+	uint8_t tempstat = 0;
+	if (subproc){
+		char *temp;
+	  	temp = (char*)&(this->brd);
+		Serial2.flush();
+	  	for (int i = 0;i < 3; i++){
+	    	Serial2.print(temp[i]);
+	  	}
+		Serial2.print(0x10);
+		
+	  	temp = (char*)&(this->brd);
+	  	for (int i = 0;i < 3; i++){
+	    	Serial2.print(temp[i]);
+	  	}
+		Serial2.print(0x40);
+		unsigned long sttime = micros();
+		while(!Serial2.available()){if((micros() - sttime)>1000) return(0xFF);};
+		temprec[0] = Serial2.read();
+		temprec[1] = Serial2.read();
+		temprec[2] = Serial2.read();
+		if ((temprec[0] == this->brd.reserved) && (temprec[1] == this->brd.brdtype) && (temprec[2] == this->brd.brdno))
+			tempstat = Serial2.read() & 0x0F;
+  	}
+	return(tempstat);
+}
+bool SaM_4_00::powerup(){
+	uint8_t temprec[3];
+	uint8_t tempstat = 0;
+	if (subproc){
+		char *temp;
+	  	temp = (char*)&(this->brd);
+		Serial2.flush();
+	  	for (int i = 0;i < 3; i++){
+	    	Serial2.print(temp[i]);
+	  	}
+		Serial2.print(0x11);
+	  	temp = (char*)&(this->brd);
+	  	for (int i = 0;i < 3; i++){
+	    	Serial2.print(temp[i]);
+	  	}
+		Serial2.print(0x40);
+		unsigned long sttime = micros();
+		while(!Serial2.available()){if((micros() - sttime)>1000) return(0xFF);};
+		temprec[0] = Serial2.read();
+		temprec[1] = Serial2.read();
+		temprec[2] = Serial2.read();
+		if ((temprec[0] == this->brd.reserved) && (temprec[1] == this->brd.brdtype) && (temprec[2] == this->brd.brdno))
+			tempstat = Serial2.read() & 0x0F;
+  	}
+	return(tempstat);
 }
 
 void SaM_4_00::initcontacq(uint32_t Fs, int32_t *mem, uint32_t memlen){
@@ -184,8 +281,8 @@ void SaM_4_00::initcontacq(uint32_t Fs, int32_t *mem, uint32_t memlen){
    //setup interrupt
    attachInterruptArg(this->pins.DRDY_,isr,this,FALLING);
    // Set up timer
-   
-   this->setMCLK((Fs<32000?Fs:32000)*32);
+   //this->setMCLK((Fs<32000?Fs:32000)*32);
+   changMCLK(Fs);
 };
 
 void SaM_4_00::termcontacq(){
@@ -223,20 +320,22 @@ float SaM_4_00::getADCval(){
 
    digitalWrite(this->pins.CS,HIGH);
    
-   // Set up timer
-   setMCLK(1024000);
+   unsigned long prevtime = micros();
+   while(digitalRead(this->pins.DRDY_) == 1){if ((micros() - prevtime) > 1000) return -1;};
+   while(digitalRead(this->pins.DRDY_) == 0){if ((micros() - prevtime) > 1000) return -1;};
+   while(digitalRead(this->pins.DRDY_) == 1){if ((micros() - prevtime) > 1000) return -1;};
+
+	digitalWrite(this->pins.CS,LOW);
+	data = this->spi->transfer32(0);
+	digitalWrite(this->pins.CS,HIGH);
+	
+	
+	data = (data/2 + 536870912);
+	return ((data*5.0/1073741824.00) * this->slope + this->bias);
    
    
-   while(digitalRead(this->pins.DRDY_) == 0){};
-   while(digitalRead(this->pins.DRDY_) == 1){};
-   disMCLK();
-
-   //stop timer
-   digitalWrite(this->pins.CS,LOW);
-   data = this->spi->transfer32(0);
-   digitalWrite(this->pins.CS,HIGH);
-
-   return ((-data*5.0/2147483648+5)/2 * this->slope + this->bias);
+   //return ((-data*5.0/2147483648+5)/2 * this->slope + this->bias);
+   //return(data);
 }
 
 bool SaM_4_00::getacqstate(){
