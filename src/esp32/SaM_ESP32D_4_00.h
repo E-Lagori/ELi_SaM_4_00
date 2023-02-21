@@ -49,6 +49,12 @@ struct SaM_4_00_Pinconfig{
             uint8_t DRDY_, MCLK, CS, S0, S1, S2, S3;
           };
 
+struct boardconf{
+  uint8_t reserved;
+  uint8_t brdtype;
+  uint8_t brdno;
+};
+
 class SaM_4_00{
   private:
           ledc_timer_t tim_num; //Timer Number for Master clock generation
@@ -56,6 +62,9 @@ class SaM_4_00{
           ledc_timer_config_t ledc_timer;// Timer configuration
           ledc_channel_config_t channel_config; // Channel configuration
 		  bool acqstate; //0 - Single acq, 1 - Continous acq
+		  bool subproc;
+		  boardconf brd;
+		  uint8_t muxstate;
           SPIClass *spi; // SPI communication 
           uint32_t memlen; // Memory length for continous acquisition
           int32_t *mem; // Memory for continous acquisition
@@ -69,15 +78,21 @@ class SaM_4_00{
   public:
         bool memovfl = 0; //Continous acquisiont memory overflow
         SaM_4_00(SaM_4_00_Pinconfig, ledc_timer_t tim_num = LEDC_TIMER_0, ledc_channel_t = LEDC_CHANNEL_0); // Constructor for Single ADC
+		SaM_4_00(SaM_4_00_Pinconfig, boardconf, ledc_timer_t tim_num = LEDC_TIMER_0, ledc_channel_t = LEDC_CHANNEL_0); // Constructor for Single ADC
         void attachSPI(SPIClass *); // Attach SPI to Single ADC
         void SetMux(uint8_t); // Set Analog signal channel 
         void initcontacq(uint32_t, int32_t *, uint32_t); // Initiate Contnous acquisition mode
         void termcontacq(); // Terminate continous acquisition
-        
+		uint32_t changMCLK(uint32_t);
+        uint8_t getmuxstate();
+		boardconf getaddress();
+		bool powerdown();
+		bool powerup();
         void applycalcorr(float, float); // Apply correction factors for ADC calibration
         
         float getADCval(); // Get single ADC value
         bool getacqstate(); // Present acquisition state - Continous or single value
         friend void isr(void *); // interrupt service routine for continous aquisition
 };
+
 #endif
