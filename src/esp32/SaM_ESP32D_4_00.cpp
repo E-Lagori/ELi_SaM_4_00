@@ -195,6 +195,7 @@ uint8_t SaM_4_00::getmuxstate(){
 	  	for (int i = 0;i < 3; i++)
 	    	Serial2.print(temp[i]);
 		Serial2.print(0x30);
+		Serial2.flush();
 		unsigned long sttime = micros();
 		while(!Serial2.available()){if((micros() - sttime)>1000) return(0xFF);};
 		temprec[0] = Serial2.read();
